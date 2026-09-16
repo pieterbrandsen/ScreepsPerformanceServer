@@ -12,7 +12,6 @@
 		"minimist": "^1.2.7",
 		"ncp": "^2.0.0",
 		"node-fetch": "^2.6.7",
-		"node-powershell": "^5.0.1",
 		"pastebin-api": "^5.1.6",
 		"q": "^1.5.1",
 		"screeps-api": "1.16.0",

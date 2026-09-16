@@ -1,4 +1,5 @@
 /* eslint-disable no-async-promise-executor */
+import fs from "fs";
 import fetch from "node-fetch";
 import _ from "lodash";
 import { ScreepsAPI } from "screeps-api";
@@ -12,7 +13,12 @@ import { RemoveLogs } from "./setup.js";
 
 let Config;
 const argv = minimist(process.argv.slice(2));
-const docker = new Docker({ socketPath: "/var/run/docker.sock" });
+// Docker Desktop exposes a named pipe on Windows, not a unix socket.
+const docker = new Docker(
+  process.platform === "win32"
+    ? { socketPath: "//./pipe/docker_engine" }
+    : { socketPath: "/var/run/docker.sock" }
+);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -215,11 +221,15 @@ export default class Helper {
       RemoveLogs();
 
       console.log("Starting server, this will take a while...");
+      // `mkdir -p && chmod 777` is a POSIX shell line and the reason the README says
+      // Windows is unsupported. Node's own mkdir is portable; the chmod only matters where
+      // the container's uid has to write a bind mount, so it stays off Windows.
       try {
         const logsPath = join(__dirname, "../logs");
-        console.log();
-        execSync(`mkdir -p ${logsPath} && chmod 777 ${logsPath}`);
-        // eslint-disable-next-line no-empty
+        fs.mkdirSync(logsPath, { recursive: true });
+        if (process.platform !== "win32") {
+          execSync(`chmod 777 "${logsPath}"`);
+        }
       } catch (error) {
         console.log(error);
       }
