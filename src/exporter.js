@@ -187,13 +187,13 @@ export default class Exporter {
 
     const loggerText = loggerFile.success
       ? `**Filtered Logs:** ${loggerFile.pasteBinUrl} (${
-        loggerFile.lineCount - 1
-      } logs)\n`
+          loggerFile.lineCount - 1
+        } logs)\n`
       : "**Filtered Logs:** No log dump file found\n";
     const historyText = historyFile.success
       ? `**Milestone History:** ${historyFile.pasteBinUrl} (${
-        historyFile.lineCount - 1
-      } logs)\n`
+          historyFile.lineCount - 1
+        } logs)\n`
       : "**Milestone History:** No history file found\n";
 
     return (
