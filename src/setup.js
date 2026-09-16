@@ -1,15 +1,13 @@
 import fs from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import getPort, { portNumbers } from "get-port";
 import minimist from "minimist";
+import { inBase, inPackage } from "./paths.js";
 
 const argv = minimist(process.argv.slice(2));
 console.dir(argv);
 
 let ports = {};
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 async function getFreePorts() {
   if (argv.serverPort && argv.cliPort) {
@@ -37,7 +35,7 @@ async function getFreePorts() {
 }
 
 function UpdateBotFolder() {
-  const botFolder = join(__dirname, "../bots/dist");
+  const botFolder = inBase("bots/dist");
   const newBotFolder = argv.botFilePath;
   if (!newBotFolder) return;
   if (!fs.existsSync(newBotFolder)) {
@@ -62,14 +60,14 @@ function UpdateBotFolder() {
 
 // eslint-disable-next-line consistent-return
 function updateConfigYmlFile() {
-  const configFilename = join(__dirname, "../config.yml");
+  const configFilename = inBase("config.yml");
 
   if (fs.existsSync(configFilename) && !argv.force)
     return console.log(
       "Config.yml file already exists, use --force to overwrite it"
     );
   // Copy config file to non example file
-  fs.copyFileSync(join(__dirname, "../config.example.yml"), configFilename);
+  fs.copyFileSync(inPackage("config.example.yml"), configFilename);
 
   // Read and replace config file
   let config = fs.readFileSync(configFilename, { encoding: "utf8" });
@@ -90,12 +88,12 @@ function updateConfigYmlFile() {
 }
 
 function UpdateEnvFile() {
-  const envFile = join(__dirname, "../.env");
+  const envFile = inBase(".env");
   if (fs.existsSync(envFile) && !argv.force)
     return console.log("Env file already exists, use --force to overwrite it");
-  const dockerComposePath = join(__dirname, "../docker-compose.yml");
+  const dockerComposePath = inBase("docker-compose.yml");
 
-  const exampleEnvFilePath = join(__dirname, "../example.env");
+  const exampleEnvFilePath = inPackage("example.env");
   let exampleEnvText = fs
     .readFileSync(exampleEnvFilePath, "utf8")
     .replace(
@@ -112,16 +110,13 @@ function UpdateEnvFile() {
 }
 
 async function UpdateDockerComposeFile() {
-  const dockerComposeFile = join(__dirname, "../docker-compose.yml");
+  const dockerComposeFile = inBase("docker-compose.yml");
   if (fs.existsSync(dockerComposeFile) && !argv.force)
     return console.log(
       "Docker-compose file already exists, use --force to overwrite it"
     );
 
-  const exampleDockerComposeFile = join(
-    __dirname,
-    "../docker-compose.example.yml"
-  );
+  const exampleDockerComposeFile = inPackage("docker-compose.example.yml");
   let exampleDockerComposeText = fs.readFileSync(
     exampleDockerComposeFile,
     "utf8"
@@ -135,13 +130,13 @@ async function UpdateDockerComposeFile() {
 }
 
 function UpdateConfigJsonFile() {
-  const configFile = join(__dirname, "../config.json");
+  const configFile = inBase("config.json");
   if (fs.existsSync(configFile) && !argv.force)
     return console.log(
       "Config.json file already exists, use --force to overwrite it"
     );
 
-  const exampleConfigFile = join(__dirname, "../config.example.json");
+  const exampleConfigFile = inPackage("config.example.json");
   let exampleConfigText = fs.readFileSync(exampleConfigFile, "utf8");
   if (argv.tickDuration)
     exampleConfigText = exampleConfigText.replaceAll(
@@ -153,7 +148,7 @@ function UpdateConfigJsonFile() {
 }
 
 export function RemoveLogs() {
-  const logsPath = join(__dirname, "../logs");
+  const logsPath = inBase("logs");
   let logsExist = fs.existsSync(logsPath);
   if (logsExist && argv.deleteLogs) {
     fs.rmdirSync(logsPath, { recursive: true });
@@ -171,6 +166,6 @@ export default async function Setup() {
 
   return {
     ports,
-    config: JSON.parse(fs.readFileSync(join(__dirname, "../config.json"))),
+    config: JSON.parse(fs.readFileSync(inBase("config.json"))),
   };
 }

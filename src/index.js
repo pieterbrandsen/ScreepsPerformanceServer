@@ -2,18 +2,15 @@ import { execSync } from "child_process";
 import * as dotenv from "dotenv";
 import minimist from "minimist";
 
-import { join, dirname } from "path";
-import { fileURLToPath } from "url"; // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
 /* eslint-disable-next-line */
 import CasePathImporter from "screeps-db-importer";
 import Setup from "./setup.js";
 import Helper from "./helper.js";
 import Exporter from "./exporter.js";
+import { inBase } from "./paths.js";
 
 let Config;
 const argv = minimist(process.argv.slice(2));
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const controllerRooms = {};
 const status = {};
@@ -375,7 +372,7 @@ class Tester {
   Config = config;
   Config.serverPort = ports.serverPort;
   Config.cliPort = ports.cliPort;
-  dotenv.config({ path: join(__dirname, "../.env") });
+  dotenv.config({ path: inBase(".env") });
 
   Helper.setConfig(Config);
   const tester = new Tester();

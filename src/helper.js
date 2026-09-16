@@ -3,19 +3,15 @@ import fetch from "node-fetch";
 import _ from "lodash";
 import { ScreepsAPI } from "screeps-api";
 import { exec, execSync } from "child_process";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 import minimist from "minimist";
 import winston from "winston";
 import Docker from "dockerode";
 import { RemoveLogs } from "./setup.js";
+import { baseDir, inBase } from "./paths.js";
 
 let Config;
 const argv = minimist(process.argv.slice(2));
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const logger = winston.createLogger({
   level: "debug",
@@ -29,7 +25,10 @@ const logger = winston.createLogger({
   ],
 });
 
-const basicCommand = "docker compose";
+// Pin compose to the resolved base directory instead of relying on the process cwd.
+const basicCommand = `docker compose -f "${inBase(
+  "docker-compose.yml"
+)}" --project-directory "${baseDir}"`;
 
 const filter = {
   controller: (o) => {
@@ -216,7 +215,7 @@ export default class Helper {
 
       console.log("Starting server, this will take a while...");
       try {
-        const logsPath = join(__dirname, "../logs");
+        const logsPath = inBase("logs");
         console.log();
         execSync(`mkdir -p ${logsPath} && chmod 777 ${logsPath}`);
         // eslint-disable-next-line no-empty
