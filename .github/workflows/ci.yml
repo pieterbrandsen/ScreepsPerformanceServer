@@ -16,28 +16,23 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  smoke:
-    # Proves the two changes that do not need Docker: config resolution and that every
-    # module still loads on a modern Node.
+  test:
+    # Docker-free: proves config resolution and that every module loads, on both platforms.
+    # The full benchmark needs Linux containers, which hosted Windows runners cannot provide,
+    # so the Windows path is exercised here and proven for real on a developer machine.
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        node: [20, 24]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - name: every module parses and imports
-        run: node -e "await Promise.all(['./src/paths.js','./src/setup.js','./src/helper.js','./src/exporter.js'].map(m => import(m)))" --input-type=module
-      - name: config resolves to the package folder by default
-        run: node -e "import('./src/paths.js').then(p => { if (p.baseDir !== p.packageDir) { console.error(p.baseDir, '!==', p.packageDir); process.exit(1); } console.log('baseDir = packageDir'); })"
-      - name: config resolves to a consumer directory
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/consumer"
-          echo '{}' > "$RUNNER_TEMP/consumer/config.json"
-          node -e "import('./src/paths.js').then(p => { const want = process.argv[1]; if (p.baseDir !== want) { console.error(p.baseDir, '!==', want); process.exit(1); } console.log('baseDir =', p.baseDir); })" "$RUNNER_TEMP/consumer" -- --configDir "$RUNNER_TEMP/consumer"
+      - run: npm test
+      - name: every module imports
+        run: node --input-type=module -e "await Promise.all(['./src/paths.js','./src/setup.js','./src/helper.js','./src/exporter.js'].map(m => import(m)))"
