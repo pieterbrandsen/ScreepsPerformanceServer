@@ -8,20 +8,23 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 
 | Branch | Purpose |
 |---|---|
-| `master` | mirrors `upstream/master` — never commit here, so PR bases stay clean |
-| `ucs` | integration: the four changes merged, plus the fork's own packaging. **This is what consumers install.** |
-| `feat/config-from-cwd` | change 1, off `master` |
-| `feat/windows-support` | change 2, off `master` |
-| `fix/node-rmdir-deprecation` | change 3, off `master` |
-| `feat/milestone-room-scoping` | change 4, off `master` |
+| `master` | the fork's own line: all four changes merged, plus its packaging. **This is what consumers install.** |
+| `feat/config-from-cwd` | change 1, cut from upstream `02eab41` |
+| `feat/windows-support` | change 2, same base |
+| `fix/node-rmdir-deprecation` | change 3, same base |
+| `feat/milestone-room-scoping` | change 4, same base |
 
-Each change branch is cut from `master` and touches nothing else, so any of them can go upstream
-as a standalone PR without dragging the others along. `ucs` merges all four; the only conflict
-is the `logs` mkdir block in `src/helper.js`, where 1 and 2 touch the same lines.
+Each change branch is cut from the upstream commit and touches nothing else, so any of them can
+go upstream as a standalone PR without dragging the others along — a PR's base is
+`screepers/ScreepsPerformanceServer:master`, not this fork's, so they stay valid however `master`
+here moves. `master` merges all four; the only conflict was the `logs` mkdir block in
+`src/helper.js`, where changes 1 and 2 touch the same lines.
+
+Because `master` now carries our own commits it no longer fast-forwards from upstream:
 
 ```bash
-git fetch upstream && git checkout master && git merge --ff-only upstream/master
-git checkout ucs && git merge master        # then re-tag
+git fetch upstream && git merge upstream/master     # not --ff-only
+# then bump version and re-tag
 ```
 
 ## Distribution — git dependency, not npm
