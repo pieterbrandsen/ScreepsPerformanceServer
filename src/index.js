@@ -184,9 +184,18 @@ class Tester {
           typeof milestone.success === "undefined" ||
           milestone.success === null
         ) {
+          // A milestone may name the rooms it judges, so that bots sharing the world do
+          // not hold each other's milestones back. Without `rooms`, every tracked room must
+          // pass, which is the previous behaviour.
+          const judgedRooms = Object.keys(status).filter(
+            (room) => !milestone.rooms || milestone.rooms.includes(room)
+          );
           let success =
-            Object.keys(status).length === Config.trackedRooms.length;
-          Object.keys(status).forEach((room) => {
+            judgedRooms.length ===
+            (milestone.rooms
+              ? milestone.rooms.length
+              : Config.trackedRooms.length);
+          judgedRooms.forEach((room) => {
             Object.keys(milestone.check).forEach((key) => {
               if (status[room][key] < milestone.check[key]) {
                 success = false;
