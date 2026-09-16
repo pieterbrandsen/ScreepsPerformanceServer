@@ -5,12 +5,13 @@ your bot and any opponents from a clean start, runs N ticks at a fixed tick rate
 milestones every tick and **exits non-zero** if a required one is missed.
 
 Fork of [screepers/ScreepsPerformanceServer](https://github.com/screepers/ScreepsPerformanceServer)
-v1.14.7 — see [FORK.md](FORK.md). The differences that matter to you:
+v1.14.7, released here as **1.15.0** — see [FORK.md](FORK.md). The differences that matter to you:
 
 - **Installable.** Config is read from your working directory, not from inside `node_modules`.
 - **Runs on Windows.** Docker Desktop's named pipe and portable path handling.
 - **Per-milestone room scoping.** `milestone.rooms` judges only the rooms you name, so opponents
   in the same world do not hold your criteria back.
+- **Lint passes**, so `npm run lint` is usable as a gate.
 
 ## Use from another repo
 
