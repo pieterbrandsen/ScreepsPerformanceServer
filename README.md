@@ -1,91 +1,63 @@
-# Screeps-Performance-Server
+# @pieterbrandsen/screeps-performance-server
 
-**Windows not supported, contact Panda for support**
+A disposable Screeps world for benchmarking a bot. Spins up a private server in Docker, spawns
+your bot and any opponents from a clean start, runs N ticks at a fixed tick rate, checks
+milestones every tick and **exits non-zero** if a required one is missed.
 
-This is a Screeps server setup that includes milestones and the [Stats mod](https://github.com/The-International-Screeps-Bot/screepsmod-server-stats) built in. It was originally created by [TooAngel](https://github.com/TooAngel) and this version includes data export for the milestones results. The exported data includes:
+Fork of [screepers/ScreepsPerformanceServer](https://github.com/screepers/ScreepsPerformanceServer)
+v1.14.7 — see [FORK.md](FORK.md). The differences that matter to you:
 
-1. Milestones reached
-2. Room status (ControllerId, creep count, level, progress, structure count)
-3. Tick count
-4. Start/end time
+- **Installable.** Config is read from your working directory, not from inside `node_modules`.
+- **Runs on Windows.** Docker Desktop's named pipe and portable path handling.
+- **Per-milestone room scoping.** `milestone.rooms` judges only the rooms you name, so opponents
+  in the same world do not hold your criteria back.
 
-## Requirements
+## Use from another repo
 
-- Node.js 16.x
-- Docker-Compose
+```bash
+npm i -D @pieterbrandsen/screeps-performance-server
+```
 
-## Installation
+Put `config.json` and `config.yml` in the directory you run from, then:
 
-1. Clone this repo
-2. Run `npm install` to install dependencies
+```bash
+npx screeps-performance-server --maxTickCount=20000 --maxBots=2 --deleteLogs
+```
 
-## Setup
-
-- Update all `.example` files to your needs. This is not required if you use the default setup.
-
-### Custom bot
-
-1. Create a new folder in the `bots` directory
-2. Add your bot's JS files to the new folder (the entry file must be named `main.js`)
-3. Update the `config.yml` file's `bots.bot` string to the path of your bot
-4. Update `config.json` with the bot spawn requirements
-
-opts properties:
-
-    * room - the room to spawn the bot into
-    * name - the name of a bot player from `config.yml`
-    * x - the X position of the spawn in the room, default is random (optional)
-    * y - the Y position of the spawn in the room, default is random (optional)
-    * auto - true/false if the bot supports auto spawning (optional)
-
-### Run commands
-
-#### Config
-
-- `--debug`: listen to setup Docker logs
-- `--force`: force the non-`.example` config files to be overwritten
-- `--botFilePath`: change the path to the bot folder (where the `main.js` file is located or all other .js files are located)
-- `--steamKey`: change the Steam key used to authenticate the bot
-- `--deleteLogs`: delete the logs folder on startup
-
-#### Network
-
-- `--serverPort`: change the port the server will run on
-- `--cliPort`: change the port the CLI will run on
-- `--relayPort`: change the port the relay will run on
-- `--disableMongo`: disable the MongoDB database and use default db instead
-
-#### Server
-
-- `--maxBots`: limit the number of bots that can be spawned
-- `--tickDuration`: change the tick duration (default: 100 (ms)
-- `--maxTickCount`: limit the number of ticks the server will run
-- `--maxTimeDuration`: change the maximum duration of the server in minutes (default: 60 minutes)
-
-#### Exporting
-
-- `--discordWebHookUrl`: send the result to the configured webhook
-- `--discordUsername`: change the username of the webhook message, default: `Screeps Performance Server`
-- `--githubOwner`: username of the GitHub user that owns the repo to report to
-- `--githubRepo`: name of the repo on GitHub to report to
-- `--githubAuth`: add a GitHub token to the request header
-- `--pasteBinUrlDevKey`: add a PasteBin dev key to send the result to PasteBin
-- `--logFilter`: filter the logs by a string and export them to an file called `logListener` in logs folder
-
-## Usage
-
-- Run `npm run server` to start the server
-
-After you see `Start the simulation with runtime (... ticks if chosen limited tick run)`, go to `localhost:21025` (if not changed) and check out the admin utils dashboard. The default pre-spawned user password is `password`.
-
-You can also start the server using `npx` by running `npm i -g screeps-performance-server` and then `npx screeps-performance-server` with optional parameters (see #Configuration run commands)
+Config is resolved as: `--configDir <path>` → the cwd if it holds a `config.json`/`config.yml`
+→ this package (so a plain clone still works). Missing files are generated from the bundled
+`.example` templates on first run.
 
 ## Milestones
 
-You can add milestones to the config file, which will be checked every tick. If one of them is reached, it will be logged. The server should stop after all milestones have been reached.
+```json
+{
+  "userCpuLimit": 20,
+  "rooms": [
+    { "room": "W1N1", "name": "mybot",    "opts": { "x": 25, "y": 25 } },
+    { "room": "W5N5", "name": "hivemind", "opts": { "auto": true } }
+  ],
+  "trackedRooms": ["W1N1", "W5N5"],
+  "milestones": [
+    { "tick": 1000,  "check": { "level": 2 }, "rooms": ["W1N1"], "required": true },
+    { "tick": 14100, "check": { "level": 3 }, "rooms": ["W1N1"], "required": true }
+  ]
+}
+```
 
-To add a milestone, you can edit or add one and add/update one of the following options:
+`check` supports `level` (RCL), `creeps` and `structures`. `rooms` is optional; without it every
+tracked room must pass, which is upstream's behaviour. `required: true` makes a miss fail the
+run.
 
-- `level` (rcl)
-- `creeps` (count)
-- `structures` (count)
+## Flags
+
+Config: `--configDir` (new), `--debug`, `--force`, `--botFilePath`, `--steamKey`, `--deleteLogs`.
+Network: `--serverPort`, `--cliPort`, `--relayPort`, `--disableMongo`.
+Server: `--maxBots`, `--tickDuration` (ms, default 100), `--maxTickCount`, `--maxTimeDuration` (min).
+Export: `--discordWebHookUrl`, `--discordUsername`, `--githubOwner`, `--githubRepo`, `--githubAuth`,
+`--pasteBinUrlDevKey`, `--logFilter`.
+
+## Requirements
+
+Node 16+, Docker with Compose. The admin dashboard is on `localhost:21025`; the pre-spawned
+user's password is `password`. Every run calls `system.resetAllData()` — the world is disposable.

@@ -1,10 +1,7 @@
-# Files
+node_modules/
+logs/
 config.yml
+config.json
 docker-compose.yml
 .env
-config.json
-
-# Folders
-node_modules
-dist
-logs
+bots/dist/
