@@ -43,9 +43,14 @@ resolves through `node_modules/.bin`, and the tag pins the version — no publis
 credential. The scoped name is kept because npm requires the dependency key to match the
 package's own name for git deps, and it leaves publishing available later at no cost.
 
-Cutting a version: bump `version` on `ucs`, commit, `git tag vX.Y.Z-ucs.N`, `git push --tags`,
-bump the consumer's ref. `files` is ignored for git installs, so the whole repo is installed —
-which is why `bots/dist` is git-ignored.
+Cutting a version: bump `version` on `master`, commit, `git tag vX.Y.Z-ucs.N`, `git push --tags`,
+bump the consumer's ref.
+
+`files` **is** honoured for git installs — a consumer gets `src`, `bots`, `bin` and the
+`.example` templates, but not `test/`, `.github/` or this file. Verified against a throwaway
+consumer on 2026-09-16: `npm i github:pieterbrandsen/ScreepsPerformanceServer#v1.14.7-ucs.1`
+links `screeps-performance-server` (plus `.cmd`/`.ps1` shims) and resolves `baseDir` to the
+consumer's directory rather than `node_modules`.
 
 Change 1 is what makes any of this possible: upstream reads its config from inside its own
 folder, so as a dependency it would need consumers to edit `node_modules`.
