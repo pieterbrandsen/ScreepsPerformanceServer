@@ -207,7 +207,11 @@ export default class Helper {
    * @return {object}
    */
   static async startServer() {
-    const stopCommand = `${basicCommand} down --volumes --remove-orphans --rmi all`;
+    // Volumes yes, images no. Removing the volumes is what guarantees a clean world; removing the
+    // images only forces a re-pull, and on a host that also runs other Screeps servers it is
+    // destructive: a locally built launcher tagged `screepers/screeps-launcher:latest` is deleted
+    // by a benchmark, and the next start silently pulls upstream in its place.
+    const stopCommand = `${basicCommand} down --volumes --remove-orphans`;
 
     const maxTime = new Promise((resolve) => {
       setTimeout(resolve, 30 * 60 * 1000, "Timeout");
