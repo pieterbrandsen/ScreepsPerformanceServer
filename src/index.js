@@ -7,6 +7,7 @@ import CasePathImporter from "screeps-db-importer";
 import Setup from "./setup.js";
 import Helper from "./helper.js";
 import Exporter from "./exporter.js";
+import { judgeMilestone } from "./milestones.js";
 import { inBase } from "./paths.js";
 
 let Config;
@@ -177,79 +178,49 @@ class Tester {
         }
       });
 
-      for (let i = 0; i < Config.milestones.length; i += 1) {
-        const milestone = Config.milestones[i];
-        const failedRooms = [];
+      Config.milestones.forEach((milestone) => {
+        // Once decided a milestone stays decided; undefined/null means still open.
         if (
-          typeof milestone.success === "undefined" ||
-          milestone.success === null
+          typeof milestone.success !== "undefined" &&
+          milestone.success !== null
         ) {
-          // A milestone may name the rooms it judges, so that bots sharing the world do
-          // not hold each other's milestones back. Without `rooms`, every tracked room must
-          // pass, which is the previous behaviour.
-          const judgedRooms = Object.keys(status).filter(
-            (room) => !milestone.rooms || milestone.rooms.includes(room)
-          );
-          let success =
-            judgedRooms.length ===
-            (milestone.rooms
-              ? milestone.rooms.length
-              : Config.trackedRooms.length);
-          judgedRooms.forEach((room) => {
-            Object.keys(milestone.check).forEach((key) => {
-              if (status[room][key] < milestone.check[key]) {
-                success = false;
-                failedRooms.push(room);
-              }
-            });
-          });
-
-          if (success) {
-            milestone.success = event.data.gameTime < milestone.tick;
-            milestone.tickReached = event.data.gameTime;
-            if (milestone.success) {
-              console.log("===============================");
-              console.log(
-                `${event.data.gameTime} Milestone: Success ${JSON.stringify(
-                  milestone
-                )}`
-              );
-              Exporter.sendPeriodicResult(
-                event.data.gameTime,
-                milestone,
-                startTime
-              );
-            } else {
-              console.log("===============================");
-              console.log(
-                `${
-                  event.data.gameTime
-                } Milestone: Reached too late ${JSON.stringify(milestone)}`
-              );
-              Exporter.sendPeriodicResult(
-                event.data.gameTime,
-                milestone,
-                startTime
-              );
-            }
-          }
+          return;
         }
 
-        if (!milestone.success && milestone.tick === event.data.gameTime) {
+        const { verdict, failedRooms } = judgeMilestone(
+          milestone,
+          status,
+          Config.trackedRooms.length,
+          event.data.gameTime
+        );
+        if (verdict === "pending") {
+          return;
+        }
+
+        milestone.success = verdict === "met";
+        if (verdict === "failed") {
+          // Only the rooms actually short of the check, judged on this sample - not a list left
+          // empty because an earlier sample happened to decide it.
           milestone.failedRooms = failedRooms;
-          console.log("===============================");
-          console.log(
-            `${event.data.gameTime} Milestone: Failed ${JSON.stringify(
-              milestone
-            )} status: ${JSON.stringify(status)}`
-          );
-          Exporter.sendPeriodicResult(
-            event.data.gameTime,
-            milestone,
-            startTime
-          );
+        } else {
+          milestone.tickReached = event.data.gameTime;
         }
-      }
+
+        const headline = {
+          met: "Success",
+          late: "Reached too late",
+          failed: "Failed",
+        }[verdict];
+        const detail =
+          verdict === "failed" ? ` status: ${JSON.stringify(status)}` : "";
+        console.log("===============================");
+        console.log(
+          `${event.data.gameTime} Milestone: ${headline} ${JSON.stringify(
+            milestone
+          )}${detail}`
+        );
+        Exporter.sendPeriodicResult(event.data.gameTime, milestone, startTime);
+      });
     }
 
     Helper.initControllerID(event, status, controllerRooms);

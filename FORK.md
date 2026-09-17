@@ -13,6 +13,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `feat/windows-support` | change 2, same base |
 | `fix/node-rmdir-deprecation` | change 3, same base |
 | `feat/milestone-room-scoping` | change 4, same base |
+| `fix/milestone-tick-latch` | change 6, cut from `master` - it rewrites what change 4 touches |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -60,7 +61,7 @@ consumer's directory rather than `node_modules`.
 Change 1 is what makes any of this possible: upstream reads its config from inside its own
 folder, so as a dependency it would need consumers to edit `node_modules`.
 
-## The four changes
+## The changes
 
 ### 1. Config resolves against the working directory — `feat/config-from-cwd`
 
@@ -107,6 +108,51 @@ milestones gate on our room while opponents stay tracked, so both curves land in
 
 **Upstream PR candidate.**
 
+### 5. Teardown leaves images alone — on `master` (b5d7192)
+
+`helper.js`. Upstream tears a run down with `docker compose down --volumes --remove-orphans
+--rmi all`. Removing the volume is what guarantees a clean world; removing the *images* only
+costs a re-pull — except on a shared host, where the launcher image is tagged
+`screepers/screeps-launcher:latest` and a locally built server may be living under that same
+tag. A benchmark then silently downgrades a server that had nothing to do with it. Now
+`--rmi all` is dropped.
+
+**Upstream PR candidate.**
+
+### 6. Milestones are judged against sampled ticks — `fix/milestone-tick-latch`
+
+`index.js`, extracted into `src/milestones.js`. Status events are *samples*: they arrive on
+socket updates, not once per tick, so `event.data.gameTime` says when we looked, not when the
+world changed. Upstream judged deadlines against that sample directly:
+
+```js
+milestone.success = event.data.gameTime < milestone.tick;      // latched on first pass
+if (!milestone.success && milestone.tick === event.data.gameTime) { /* report failure */ }
+```
+
+Three consequences, all seen on real runs:
+
+- A condition that held long before its deadline was recorded **failed** if the first sample to
+  observe it landed on or after that deadline. `structures >= 1` at tick 100, in a room that had
+  a spawn from tick 1, reported `Failed`.
+- That report carried an **empty `failedRooms`** — the list is only filled when the evaluation
+  block runs, and a milestone already decided skips it. Nothing had failed; the comparison had.
+- A deadline the sampling **stepped over** was never reported at all, because the failure branch
+  required `=== milestone.tick`. The end-of-run gate still caught required ones, so this cost
+  visibility rather than correctness.
+
+Now `judgeMilestone()` returns `pending` / `met` / `late` / `failed`: met at or before the
+deadline is `met`, met only after it is `late`, and nothing is called `failed` until a sample at
+or past the deadline still falls short — with the rooms that actually fell short. What sampling
+cannot tell us it does not claim: a condition first *observed* after its deadline is reported as
+late, not silently passed.
+
+`test/milestones.test.mjs` covers all four verdicts Docker-free, including the two cases above;
+`npm test` runs it in CI.
+
+**Upstream PR candidate** — but it rewrites the block change 4 introduced, so it is cut from
+`master` rather than from the upstream base, and would need rebasing to go up alone.
+
 ## Checked, deliberately unchanged
 
 - `src/exporter.js:15-16` defaults `githubOwner`/`githubRepo` to The International's repo, but
@@ -120,11 +166,12 @@ milestones gate on our room while opponents stay tracked, so both curves land in
 - `upstream/rework` exists and has not been reviewed — check it before opening the PRs, in case
   it already moves any of this.
 
-## Not yet verified
+## Verification status
 
-None of it has been run. First green run is M0 in the `screeps-bot` repo; until then treat the
-Windows and git-install paths as designed, not proven. The four changes are independent, so a
-failure in one does not implicate the others.
+Run end to end from the `screeps-bot` repo since 2026-09-17, on Windows with Docker Desktop and
+on Linux over ssh: both bots spawn, the world runs, and a 20 000-tick run has exited 0. The gate
+has also been watched to fail on purpose, which is the half that matters. Still unproven: the
+`--record` profile and any run under the corrected milestone judging of change 6.
 
 ## Consumers
 
