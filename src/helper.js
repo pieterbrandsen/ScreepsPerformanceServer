@@ -6,18 +6,11 @@ import { ScreepsAPI } from "screeps-api";
 import { exec, execSync } from "child_process";
 import minimist from "minimist";
 import winston from "winston";
-import Docker from "dockerode";
 import { RemoveLogs } from "./setup.js";
 import { baseDir, inBase } from "./paths.js";
 
 let Config;
 const argv = minimist(process.argv.slice(2));
-// Docker Desktop exposes a named pipe on Windows, not a unix socket.
-const docker = new Docker(
-  process.platform === "win32"
-    ? { socketPath: "//./pipe/docker_engine" }
-    : { socketPath: "/var/run/docker.sock" }
-);
 
 const logger = winston.createLogger({
   level: "debug",
@@ -162,42 +155,56 @@ export default class Helper {
     return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
   }
 
-  static async waitForServerStart() {
-    return new Promise(async (resolve) => {
-      let hitCountMissing = 1;
-      // Subscribe to container logs
-      docker.getContainer("screeps_performance_server").logs(
-        {
-          follow: true,
-          stdout: true,
-          stderr: true,
-        },
-        (err, stream) => {
-          if (err) {
-            console.error("Error getting container logs: ", err);
-            return;
+  static async waitForServerStart(timeoutSeconds = 900) {
+    // Readiness used to mean catching one line in the container's log stream,
+    // "[main] exec: screeps-engine-main". That only works if the subscription is attached to the
+    // container that prints it and survives until it does, and the server bounces early in a run.
+    // Measured on a run that hung: the stream was attached at 16:14:51 and the container that
+    // printed the line started at 16:14:57 - six seconds later - so it was listening to an
+    // incarnation that was already gone. With only a `data` handler, that stream's death was
+    // silent, and the run sat through the full 30-minute race doing nothing, with the world
+    // ticking at the default 1000 ms and no line anywhere saying why.
+    //
+    // Asking the CLI is a positive signal for exactly what every caller does next, and unlike a
+    // log line it can be asked again - so attaching late, or to the wrong incarnation, costs one
+    // more poll instead of the run. It also cannot report ready before the CLI can take commands,
+    // which the log line could.
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    let reported = false;
+    while (Date.now() < deadline) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const response = await fetch(
+          `http://${hostname}:${Config.cliPort}/cli`,
+          {
+            method: "POST",
+            body: "system.getTickDuration()",
+            headers: { "Content-Type": "text/plain" },
           }
-
-          // Parse each log line and filter based on condition
-          stream.setEncoding("utf8");
-          stream.on("data", (chunk) => {
-            const lines = chunk.split("\n");
-            lines.forEach((line) => {
-              if (argv.debug) console.log(line);
-              if (line.includes("[main] exec: screeps-engine-main")) {
-                hitCountMissing -= 1;
-                if (hitCountMissing === 0) {
-                  resolve(true);
-                  stream.destroy();
-                }
-              }
-            });
-          });
+        );
+        // eslint-disable-next-line no-await-in-loop
+        const text = await response.text();
+        if (response.ok && text.trim().length > 0) {
+          console.log(
+            `Server is accepting CLI commands (tick duration ${text.trim()})`
+          );
+          return true;
         }
-      );
-
-      console.log("end");
-    });
+      } catch (error) {
+        // Connection refused for as long as the server is installing and booting, which is the
+        // normal case and not worth a line per attempt.
+        if (!reported) {
+          console.log("Waiting for the server to accept CLI commands...");
+          reported = true;
+        }
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await this.sleep(2);
+    }
+    console.log(
+      `Server did not accept a CLI command within ${timeoutSeconds}s - giving up rather than waiting silently.`
+    );
+    return false;
   }
 
   /**

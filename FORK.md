@@ -14,6 +14,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `fix/node-rmdir-deprecation` | change 3, same base |
 | `feat/milestone-room-scoping` | change 4, same base |
 | `fix/milestone-tick-latch` | change 6, cut from `master` - it rewrites what change 4 touches |
+| `fix/server-ready-probe` | change 7, same base |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -152,6 +153,29 @@ late, not silently passed.
 
 **Upstream PR candidate** — but it rewrites the block change 4 introduced, so it is cut from
 `master` rather than from the upstream base, and would need rebasing to go up alone.
+
+### 7. Server readiness is asked, not overheard — `fix/server-ready-probe`
+
+`helper.js`. `waitForServerStart()` subscribed to the container's log stream and waited for one
+line, `[main] exec: screeps-engine-main`. That only works if the subscription is attached to the
+container that prints it and survives until it does — and the server bounces early in a run.
+Measured on a run that hung: the stream attached at 16:14:51 and the container that printed the
+line started at 16:14:57, six seconds later, so it was listening to an incarnation that was already
+gone. The handler was `data` only, so the stream's death was silent; the run then sat through the
+full 30-minute race doing nothing at all, with the world ticking at the server default of 1000 ms
+and no line anywhere saying why. A benchmark that hangs looks exactly like a benchmark that is
+still running.
+
+It now polls the CLI for `system.getTickDuration()` until it answers. That is a positive signal for
+precisely what every caller does next — issue CLI commands — and unlike a log line it can be asked
+again, so attaching late or to the wrong container costs one more poll rather than the run. It also
+cannot report ready before the CLI can actually take commands, which the log line could. The wait
+is bounded and says so when it gives up.
+
+This removes the only use of `dockerode`, so the dependency goes with it, along with its Windows
+named-pipe special case.
+
+**Upstream PR candidate.**
 
 ## Checked, deliberately unchanged
 

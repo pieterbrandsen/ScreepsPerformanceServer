@@ -1,10 +1,9 @@
 {
 	"name": "@pieterbrandsen/screeps-performance-server",
-	"version": "1.16.1",
+	"version": "1.17.0",
 	"dependencies": {
 		"@octokit/core": "^4.2.0",
 		"discord.js": "^14.9.0",
-		"dockerode": "^4.0.2",
 		"dotenv": "^16.0.3",
 		"get-port": "^6.1.2",
 		"json-beautify": "^1.1.1",
