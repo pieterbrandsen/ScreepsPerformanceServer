@@ -80,4 +80,18 @@ const ours = (structures = 0, level = 0, creeps = 0) => ({
   );
 }
 
+// Seen on a live run: a status event arrived without a gameTime, and judging it compared
+// undefined against the deadline - false for every milestone - so a met one was recorded as
+// reached too late and, being decided, never re-examined.
+{
+  const milestone = { tick: 5000, check: { structures: 1 }, rooms: ["W7N3"] };
+  for (const noTick of [undefined, null, NaN, "1200"]) {
+    assert.equal(
+      judgeMilestone(milestone, ours(1), 1, noTick).verdict,
+      "pending",
+      `a sample carrying ${String(noTick)} as its tick decides nothing`
+    );
+  }
+}
+
 console.log("milestones.test.mjs: ok");

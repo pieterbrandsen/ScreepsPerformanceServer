@@ -20,6 +20,13 @@
  *   `failed`; `failedRooms` lists the rooms short of the check, and is empty unless it failed.
  */
 export function judgeMilestone(milestone, status, trackedRoomCount, tick) {
+  // A sample with no game time decides nothing. Without this, `undefined` compares false against
+  // every deadline, so a met milestone is recorded as reached too late - and, being decided, is
+  // never looked at again.
+  if (!Number.isFinite(tick)) {
+    return { verdict: "pending", failedRooms: [] };
+  }
+
   // A milestone may name the rooms it judges, so bots sharing a world do not hold each other's
   // milestones back. Without `rooms`, every tracked room must pass.
   const judgedRooms = Object.keys(status).filter(

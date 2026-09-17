@@ -161,8 +161,16 @@ class Tester {
    * @param {object} event
    */
   static statusUpdater = (event) => {
-    if (event.data.gameTime !== lastTick) {
-      lastTick = event.data.gameTime || 0;
+    // Not every status event carries a game time, and one that does not can date nothing: it can
+    // neither extend the controller history nor decide a deadline. Judging on it compared
+    // `undefined` against the deadline, which is false for every milestone, so a met one was
+    // recorded as reached too late and stayed that way. The object updates below still run on
+    // every event - that is how `status` is filled in the first place.
+    if (
+      Number.isFinite(event.data.gameTime) &&
+      event.data.gameTime !== lastTick
+    ) {
+      lastTick = event.data.gameTime;
 
       Object.keys(status).forEach((room) => {
         const controllerLevel = status[room].level;
