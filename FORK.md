@@ -16,6 +16,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `fix/milestone-tick-latch` | change 6, cut from `master` - it rewrites what change 4 touches |
 | `fix/server-ready-probe` | change 7, same base |
 | `fix/room-object-counts` | change 8, cut from the upstream commit - it only touches code upstream still has |
+| `feat/keep-server-running` | change 9, same base |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -200,6 +201,21 @@ without a `type` - a creep that merely moved - changes nothing. Only the room ow
 counted, the owner being learned from the spawn or controller in the first update, which carries
 the whole room. `test/room-objects.test.mjs` covers each of those, including the two-scouts case
 that produced the wrong numbers above.
+
+**Upstream PR candidate.**
+
+### 9. The server can outlive the run - `feat/keep-server-running`
+
+`index.js`. The runner ran `docker compose stop` the moment the simulation ended. `screepsmod-history`
+writes a file only when its 100-tick window completes, so stopping mid-window loses that window for
+good: measured after a 25 000-tick run, the server answered 200 for every history file up to 24 800
+and 500 for 24 900, and still does. A hundred ticks of the run that nothing can recover, on every
+run, silently.
+
+The stop is also usually undone at once - a caller that wants the world, to read history out of it
+or to pause and look at it, starts the containers straight back up, which ours does two seconds
+later. `--keepServerRunning` leaves them up and the default is unchanged, so this is additive for
+anyone upstream who relies on the stop.
 
 **Upstream PR candidate.**
 
