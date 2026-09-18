@@ -20,6 +20,10 @@ let lastTick = 0;
 
 const startTime = Date.now();
 
+// The runner emits this on itself when the server will not start, so it is not only a human
+// pressing Ctrl-C: either way the run did not happen, and `process.exit()` with no argument said
+// it did. Measured: a server whose install ran past the startup budget aborted here, exited 0, and
+// the calling script reported "all required milestones hit" for a world that never left tick 0.
 process.once("SIGINT", () => {
   console.log("Stop received...");
   const endTime = Date.now();
@@ -36,7 +40,7 @@ process.once("SIGINT", () => {
   console.log("Milestones:");
   console.log(JSON.stringify(Config.milestones, null, 2));
   console.log("Exiting done...");
-  process.exit();
+  process.exit(130);
 });
 
 class Tester {
