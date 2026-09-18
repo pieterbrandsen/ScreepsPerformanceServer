@@ -15,6 +15,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `feat/milestone-room-scoping` | change 4, same base |
 | `fix/milestone-tick-latch` | change 6, cut from `master` - it rewrites what change 4 touches |
 | `fix/server-ready-probe` | change 7, same base |
+| `fix/room-object-counts` | change 8, cut from the upstream commit - it only touches code upstream still has |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -174,6 +175,31 @@ is bounded and says so when it gives up.
 
 This removes the only use of `dockerode`, so the dependency goes with it, along with its Windows
 named-pipe special case.
+
+**Upstream PR candidate.**
+
+### 8. A room's contents are counted, not its sightings - `fix/room-object-counts`
+
+`helper.js`, `index.js`, new `src/room-objects.js`. `updateCreeps` and `updateStructures` added the
+size of every room update to a running total. A room subscription sends the whole room once and
+deltas after that, so the total counted sightings rather than contents: it never fell when a creep
+died, and every creep counted, including other players'.
+
+Measured on a private server while a run was going: the tracked room held no creeps at all - the
+server's own object list was two sources, a controller, a mineral and a spawn - while the status
+line printed `"creeps": 2` at tick 8952 and `"creeps": 4` at tick 15050, as an opponent's scouts
+crossed it. `structures` had the same shape, counting only spawns and extensions but never
+releasing one that was destroyed.
+
+Milestones are judged against exactly these numbers (`index.js`, `status[room][key] < check[key]`),
+so `check: { creeps: N }` could be met by passers-by while the bot had nothing of its own, and once
+enough had wandered through it could never fail again.
+
+The new module keeps object ids: an update adds what it introduces, `null` removes it, and a delta
+without a `type` - a creep that merely moved - changes nothing. Only the room owner's objects are
+counted, the owner being learned from the spawn or controller in the first update, which carries
+the whole room. `test/room-objects.test.mjs` covers each of those, including the two-scouts case
+that produced the wrong numbers above.
 
 **Upstream PR candidate.**
 
