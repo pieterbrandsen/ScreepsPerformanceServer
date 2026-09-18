@@ -17,6 +17,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `fix/server-ready-probe` | change 7, same base |
 | `fix/room-object-counts` | change 8, cut from the upstream commit - it only touches code upstream still has |
 | `feat/keep-server-running` | change 9, same base |
+| `fix/abort-exit-code` | change 10, same base |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -216,6 +217,21 @@ The stop is also usually undone at once - a caller that wants the world, to read
 or to pause and look at it, starts the containers straight back up, which ours does two seconds
 later. `--keepServerRunning` leaves them up and the default is unchanged, so this is additive for
 anyone upstream who relies on the stop.
+
+**Upstream PR candidate.**
+
+### 10. An aborted run says so - `fix/abort-exit-code`
+
+`index.js`. The SIGINT handler ends with `process.exit()`, which is exit code 0, and the runner
+emits SIGINT on itself when the server will not start. So a run that never began reported success.
+
+Measured: a host busy enough that the server's install ran past the 30-minute startup budget printed
+"Timeout starting server!", aborted, exited 0, and the calling script announced "all required
+milestones hit" for a world still on tick 0. Nothing downstream could tell that from a real run
+except by looking at the data afterwards.
+
+It exits 130 now - what a shell reports for SIGINT - which covers both a human pressing Ctrl-C and
+the runner giving up, since in both cases the run did not happen.
 
 **Upstream PR candidate.**
 
