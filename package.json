@@ -19,7 +19,7 @@
 	},
 	"scripts": {
 		"start": "node src/index.js",
-		"test": "node test/paths.test.mjs && node test/milestones.test.mjs",
+		"test": "node test/paths.test.mjs && node test/milestones.test.mjs && node test/room-objects.test.mjs",
 		"server": "node src/index.js --maxTickCount=25000 --maxBots=5 --serverPort=21025 --cliPort=21026 --deleteLogs",
 		"server-test": "node src/index.js --maxTickCount=50000 --maxBots=5 --serverPort=21025 --cliPort=21026 --force --deleteLogs --debug",
 		"lint": "eslint src",

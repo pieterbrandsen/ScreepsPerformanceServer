@@ -6,6 +6,7 @@ import { ScreepsAPI } from "screeps-api";
 import { exec, execSync } from "child_process";
 import minimist from "minimist";
 import winston from "winston";
+import { applyRoomObjects, createRoomObjectState } from "./room-objects.js";
 import { RemoveLogs } from "./setup.js";
 import { baseDir, inBase } from "./paths.js";
 
@@ -36,19 +37,11 @@ const filter = {
     }
     return false;
   },
-  creeps: (o) => {
-    if (o && o.type) {
-      return o.type === "creep";
-    }
-    return false;
-  },
-  structures: (o) => {
-    if (o && o.type) {
-      return o.type === "spawn" || o.type === "extension";
-    }
-    return false;
-  },
 };
+
+// One per tracked room, carried across updates: a delta stream cannot be counted message by
+// message, only applied to what the last message left behind.
+const roomObjects = {};
 
 const hostname = "127.0.0.1";
 
@@ -305,18 +298,25 @@ export default class Helper {
     }
   }
 
-  static updateCreeps(event, status) {
-    const creeps = _.filter(event.data.objects, filter.creeps);
-    if (_.size(creeps) > 0) {
-      status[event.id].creeps += _.size(creeps);
+  /**
+   * What the room holds now, rather than how many objects have ever been seen in it.
+   *
+   * The old pair added the size of every update to a running total, so `creeps` was a tally of
+   * sightings by anyone: it never fell when a creep died, and an opponent's scout crossing an
+   * empty room raised it. Milestones are judged on these numbers, so that tally could satisfy a
+   * `check: { creeps: N }` for a room with nothing in it.
+   *
+   * @param {object} event - a room subscription update
+   * @param {object} status - the per-room status milestones are judged against
+   * @return {undefined}
+   */
+  static updateRoomObjects(event, status) {
+    if (!roomObjects[event.id]) {
+      roomObjects[event.id] = createRoomObjectState();
     }
-  }
-
-  static updateStructures(event, status) {
-    const structures = _.filter(event.data.objects, filter.structures);
-    if (_.size(structures) > 0) {
-      status[event.id].structures += _.size(structures);
-    }
+    const counts = applyRoomObjects(roomObjects[event.id], event.data.objects);
+    status[event.id].creeps = counts.creeps;
+    status[event.id].structures = counts.structures;
   }
 
   static updateController(event, status, controllerRooms) {
