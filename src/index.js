@@ -248,8 +248,7 @@ class Tester {
 
     Helper.initControllerID(event, status, controllerRooms);
     if (Object.keys(event.data.objects).length > 0) {
-      Helper.updateCreeps(event, status);
-      Helper.updateStructures(event, status);
+      Helper.updateRoomObjects(event, status);
       Helper.updateController(event, status, controllerRooms);
     }
   };

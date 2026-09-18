@@ -23,7 +23,8 @@
 		"server": "node src/index.js --maxTickCount=25000 --maxBots=5 --serverPort=21025 --cliPort=21026 --deleteLogs",
 		"server-test": "node src/index.js --maxTickCount=50000 --maxBots=5 --serverPort=21025 --cliPort=21026 --force --deleteLogs --debug",
 		"lint": "eslint src/**/*",
-		"lint:fix": "eslint src/**/* --fix"
+		"lint:fix": "eslint src/**/* --fix",
+		"test": "node test/room-objects.test.mjs"
 	},
 	"type": "module",
 	"devDependencies": {
