@@ -123,8 +123,19 @@ class Tester {
         await Helper.sleep(1);
       }
       console.log(`${lastTick} End of simulation`);
-      console.log("Executing docker compose stop");
-      execSync("docker compose stop", { stdio: "ignore" });
+      // Stopping the containers here kills the server in the middle of a history window, and
+      // `screepsmod-history` only writes a file when its window completes - so the last 100 ticks
+      // of a run were never recorded. Measured: after a 25 000-tick run the server answered 200 for
+      // every history file up to 24 800 and 500 for 24 900, permanently.
+      //
+      // The caller usually wants the world anyway - to read the history out of it, to look at it,
+      // or to pause it - and can stop it itself in one command. `--keepServerRunning` leaves it up.
+      if (argv.keepServerRunning) {
+        console.log("Leaving the server running (--keepServerRunning)");
+      } else {
+        console.log("Executing docker compose stop");
+        execSync("docker compose stop", { stdio: "ignore" });
+      }
 
       console.log("Status:");
       console.log(JSON.stringify(status, null, 2));
