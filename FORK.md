@@ -18,6 +18,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `fix/room-object-counts` | change 8, cut from the upstream commit - it only touches code upstream still has |
 | `feat/keep-server-running` | change 9, same base |
 | `fix/abort-exit-code` | change 10, same base |
+| `fix/followlog-unhandled-rejection` | change 11, cut from `master` - it touches `helper.js`, which changes 1, 2 and 5 already do |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -232,6 +233,34 @@ except by looking at the data afterwards.
 
 It exits 130 now - what a shell reports for SIGINT - which covers both a human pressing Ctrl-C and
 the runner giving up, since in both cases the run did not happen.
+
+**Upstream PR candidate.**
+
+### 11. One room's auth failure cannot crash every room's - `fix/followlog-unhandled-rejection`
+
+`helper.js`, new `src/isolated-tasks.js`. `followLog`'s `rooms.forEach(async (room) => {...})` ran
+every room's `ScreepsAPI` auth concurrently, but `forEach` neither awaits nor catches its async
+callbacks - a rejection from any one of them is an unhandled rejection in the whole Node process,
+which crashes it.
+
+Measured on a 20-room world (`screeps-bot`'s M1 corpus runs, each room its own account spun up in
+the same pass): all 20 accounts spawned, were whitelisted and got their CLI-minted perf tokens
+successfully - the crash came afterward, in `followLog`, where one room's auth got `Not
+Authorized`. The likely cause is a race between `setPassword`'s CLI write committing and
+`followLog`'s auth reading it back moments later, which is exactly the kind of timing that gets
+more likely, not less, the more accounts are being set up in the same pass - a 2-room world (the
+only prior multi-room use of this package) apparently never hit it. Whichever room's auth happened
+to finish first kept running standalone; the other 19 - already spawned and simulating, with
+nothing wrong with any of them - lost their history and live status entirely, because the crash
+took the process running all of them down with it, not just the one that failed.
+
+`followLog` only feeds live status/console updates over a socket; a room's own benchmark and
+`screepsmod-history` output do not depend on it at all. So the fix is isolation, not correctness:
+`runIsolated` (`src/isolated-tasks.js`) runs each room's auth as its own task, retried up to 3
+times with a short delay, and unaffected by every other task's outcome. A room still failing after
+retries is skipped with a `console.log` naming it, not thrown - its benchmark and history are
+unaffected, it only loses this one live feed. `test/isolated-tasks.test.mjs` covers isolation,
+per-task retry budgets, and giving up after they're exhausted, without touching the network.
 
 **Upstream PR candidate.**
 
