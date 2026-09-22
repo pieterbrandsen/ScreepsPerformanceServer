@@ -19,6 +19,7 @@ stats mod, multi-bot worlds and result export. MIT; `LICENSE.md` retained.
 | `feat/keep-server-running` | change 9, same base |
 | `fix/abort-exit-code` | change 10, same base |
 | `fix/followlog-unhandled-rejection` | change 11, cut from `master` - it touches `helper.js`, which changes 1, 2 and 5 already do |
+| `fix/serialize-bot-spawns` | change 12, cut from `master` - it touches `index.js`, which changes 4, 6, 8, 9 and 10 already do |
 
 Each change branch is cut from the upstream commit and touches nothing else, so any of them can
 go upstream as a standalone PR without dragging the others along — a PR's base is
@@ -261,6 +262,34 @@ times with a short delay, and unaffected by every other task's outcome. A room s
 retries is skipped with a `console.log` naming it, not thrown - its benchmark and history are
 unaffected, it only loses this one live feed. `test/isolated-tasks.test.mjs` covers isolation,
 per-task retry budgets, and giving up after they're exhausted, without touching the network.
+
+**Upstream PR candidate.**
+
+### 12. `auto:true` spawn placement only lands for the first concurrent room - `fix/serialize-bot-spawns`
+
+`index.js`. The startup loop built one `Helper.spawnBot(...)` promise per configured room and
+awaited them all together with `Promise.all`, so every room's `bots.spawn({..., auto:'true'})` CLI
+call fired at effectively the same moment.
+
+Measured on the same 20-room corpus config as change 11, after that fix was already deployed (so
+this is not the same failure): all 20 accounts were created, whitelisted, minted a token, and
+claimed their room's controller by tick 1000 - `Tester.statusUpdater`'s own snapshot showed
+`level: 1` with a real controller id in every room, not `null`. But by tick 5000+, only the first
+room in the config's `rooms` array (array order, not alphabetical - confirmed by reordering the
+config and watching the "winner" change) had an actual spawn structure; the other 19 had a claimed
+controller and nothing else - no spawn, no structures, no creeps - for the rest of the run.
+`auto:true` asks the engine to search the room for a free spot and place a spawn there itself; that
+search is not safe to run from 20 concurrent CLI calls at once, and `executeCliCommand` only logs
+the CLI's response text under `--debug`, so a room silently losing this race left no trace to
+diagnose from the run log alone - only a live room-objects/room-terrain check against the running
+server (not the launcher's own tick-1000 status, which only reflects `controller.claim`, a
+different call) surfaced it.
+
+The fix removes the `Promise.all` batching: the loop now `await`s each `Helper.spawnBot` call in
+turn, one CLI round-trip at a time, so no two `auto:true` placements are ever in flight together.
+Slower - roughly 20 sequential CLI round-trips instead of one concurrent burst - but the whole
+setup phase is seconds against a run measured in tens of thousands of ticks, and every room gets a
+real spawn instead of 19 losing a race with no error to catch.
 
 **Upstream PR candidate.**
 
