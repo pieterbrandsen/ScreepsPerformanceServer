@@ -303,23 +303,27 @@ class Tester {
         Config.cliPort
       );
 
-      const spawnBots = [];
+      // Sequential, not Promise.all: bots.spawn({..., auto:'true'}) asks the engine to pick a
+      // free spot itself, and firing many of those through the CLI at once is not safe - only
+      // the first concurrent call reliably lands a spawn, and the rest place a controller with
+      // no structures and no error the launcher can see (executeCliCommand only logs the CLI's
+      // response text under --debug). Measured on a 20-room corpus config: every room claimed
+      // its controller, but 19 of 20 never got a spawn, structure or creep for the run's full
+      // 30000 ticks. One `bots.spawn` call awaited at a time removes the race entirely.
       const rooms = Object.entries(Config.rooms);
       for (let roomCount = 0; roomCount < rooms.length; roomCount += 1) {
         const roomData = rooms[roomCount];
         const roomName = roomData[1].room;
         const opts = roomData[1].opts ? roomData[1].opts : {};
-        spawnBots.push(
-          Helper.spawnBot(
-            roomData[1].name,
-            roomName,
-            this.roomsSeen,
-            Config.cliPort,
-            opts
-          )
+        // eslint-disable-next-line no-await-in-loop
+        await Helper.spawnBot(
+          roomData[1].name,
+          roomName,
+          this.roomsSeen,
+          Config.cliPort,
+          opts
         );
       }
-      await Promise.all(spawnBots);
 
       if (
         Object.keys(Config.rooms).length === Object.keys(this.roomsSeen).length
