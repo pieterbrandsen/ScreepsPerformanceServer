@@ -7,6 +7,7 @@ import { exec, execSync } from "child_process";
 import minimist from "minimist";
 import winston from "winston";
 import { applyRoomObjects, createRoomObjectState } from "./room-objects.js";
+import { runIsolated } from "./isolated-tasks.js";
 import { RemoveLogs } from "./setup.js";
 import { baseDir, inBase } from "./paths.js";
 
@@ -56,37 +57,64 @@ export default class Helper {
    * Connects to the api and reads and prints the console log, if messages
    * are available
    *
+   * Each room gets its own auth attempt, retried up to 3 times and isolated from every other
+   * room's via `runIsolated` (see isolated-tasks.js for why: this used to be a bare
+   * `rooms.forEach(async ...)`, and one room's "Not Authorized" - measured with a 20-room world,
+   * where enough accounts are being set up at once that the race becomes likely - took the whole
+   * process down, losing the live status/console feed for every other room even though their own
+   * simulations were fine). A room that still fails after retries is skipped with a warning: its
+   * benchmark keeps running and its history is unaffected, it only loses this live feed.
+   *
    * @param {list} rooms - The rooms
    * @param {function} statusUpdater - Function to handle status updates
    * @return {undefined}
    */
   static async followLog(rooms, statusUpdater) {
-    rooms.forEach(async (room) => {
-      const api = new ScreepsAPI({
-        email: room,
-        password: "password",
-        protocol: "http",
-        hostname,
-        port: Config.serverPort,
-        path: "/",
-      });
+    await runIsolated(
+      rooms.map((room) => ({
+        label: room,
+        run: async () => {
+          const api = new ScreepsAPI({
+            email: room,
+            password: "password",
+            protocol: "http",
+            hostname,
+            port: Config.serverPort,
+            path: "/",
+          });
 
-      await api.auth();
+          await api.auth();
 
-      api.socket.connect();
-      api.socket.on("connected", () => {});
-      api.socket.on("auth", () => {});
-      api.socket.subscribe(`room:${room}`, statusUpdater);
-      api.socket.subscribe("console", (event) => {
-        if (event.data.messages) {
-          event.data.messages.log
-            .filter((msg) => msg.includes("<p style='color:#bb3d3d;'>"))
-            .forEach((msg) => {
-              logger.debug(msg);
-            });
-        }
-      });
-    });
+          api.socket.connect();
+          api.socket.on("connected", () => {});
+          api.socket.on("auth", () => {});
+          api.socket.subscribe(`room:${room}`, statusUpdater);
+          api.socket.subscribe("console", (event) => {
+            if (event.data.messages) {
+              event.data.messages.log
+                .filter((msg) => msg.includes("<p style='color:#bb3d3d;'>"))
+                .forEach((msg) => {
+                  logger.debug(msg);
+                });
+            }
+          });
+        },
+      })),
+      {
+        onRetry: (room, error, attempt) =>
+          console.log(
+            `followLog: ${room} attempt ${attempt} failed (${
+              error.message || error
+            }), retrying`
+          ),
+        onGiveUp: (room, error) =>
+          console.log(
+            `followLog: giving up on ${room}'s live status/console feed after retries (${
+              error.message || error
+            }) - its own simulation and history are unaffected`
+          ),
+      }
+    );
   }
 
   /**
